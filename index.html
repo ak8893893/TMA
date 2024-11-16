@@ -20,11 +20,12 @@
             margin: 5px;
         }
         .button:hover { background: #2980b9; }
-        .network-select {
+        .error { color: red; margin: 10px 0; }
+        .network-info {
+            background: #f8f9fa;
             padding: 10px;
-            margin: 10px 0;
             border-radius: 5px;
-            border: 1px solid #ddd;
+            margin: 10px 0;
         }
         .nft-grid {
             display: grid;
@@ -44,71 +45,43 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        // 定義支持的網路
-        const NETWORKS = {
-            MANTLE: {
-                chainId: '0x1388', // 5000 in hex
-                chainName: 'Mantle',
-                nativeCurrency: {
-                    name: 'MNT',
-                    symbol: 'MNT',
-                    decimals: 18
-                },
-                rpcUrls: ['https://rpc.mantle.xyz'],
-                blockExplorerUrls: ['https://explorer.mantle.xyz']
-            },
-            BASE: {
-                chainId: '0x2105', // 8453 in hex
-                chainName: 'Base',
-                nativeCurrency: {
-                    name: 'ETH',
-                    symbol: 'ETH',
-                    decimals: 18
-                },
-                rpcUrls: ['https://mainnet.base.org'],
-                blockExplorerUrls: ['https://basescan.org']
-            }
-        };
-
+        // 更新的 ERC721 ABI，包含更多方法用於調試
         const ERC721_ABI = [
             "function balanceOf(address owner) view returns (uint256)",
             "function tokenOfOwnerByIndex(address owner, uint256 index) view returns (uint256)",
-            "function tokenURI(uint256 tokenId) view returns (string)"
+            "function tokenURI(uint256 tokenId) view returns (string)",
+            "function ownerOf(uint256 tokenId) view returns (address)",
+            "function name() view returns (string)",
+            "function symbol() view returns (string)"
         ];
 
         function NFTWalletDemo() {
             const [account, setAccount] = React.useState('');
             const [nfts, setNfts] = React.useState([]);
             const [isConnected, setIsConnected] = React.useState(false);
-            const [currentNetwork, setCurrentNetwork] = React.useState('');
+            const [error, setError] = React.useState('');
+            const [networkInfo, setNetworkInfo] = React.useState({});
+            const [isLoading, setIsLoading] = React.useState(false);
 
-            const switchNetwork = async (networkKey) => {
+            const getNetworkInfo = async () => {
                 try {
-                    const network = NETWORKS[networkKey];
-                    await window.ethereum.request({
-                        method: 'wallet_addEthereumChain',
-                        params: [
-                            {
-                                chainId: network.chainId,
-                                chainName: network.chainName,
-                                nativeCurrency: network.nativeCurrency,
-                                rpcUrls: network.rpcUrls,
-                                blockExplorerUrls: network.blockExplorerUrls
-                            }
-                        ]
+                    const provider = new ethers.providers.Web3Provider(window.ethereum);
+                    const network = await provider.getNetwork();
+                    const chainId = await window.ethereum.request({ 
+                        method: 'eth_chainId' 
                     });
-                    setCurrentNetwork(networkKey);
-                    // 如果已經連接錢包，重新獲取NFT
-                    if (account) {
-                        fetchNFTs(account);
-                    }
-                } catch (error) {
-                    console.error('切換網路錯誤:', error);
-                    alert('切換網路失敗: ' + error.message);
+                    setNetworkInfo({
+                        name: network.name,
+                        chainId: chainId
+                    });
+                } catch (err) {
+                    console.error('獲取網絡信息錯誤:', err);
                 }
             };
 
             const connectWallet = async () => {
+                setError('');
+                setIsLoading(true);
                 try {
                     if (window.ethereum) {
                         const accounts = await window.ethereum.request({
@@ -116,100 +89,120 @@
                         });
                         setAccount(accounts[0]);
                         setIsConnected(true);
-                        
-                        // 獲取當前網路ID
-                        const chainId = await window.ethereum.request({ 
-                            method: 'eth_chainId' 
-                        });
-                        
-                        // 設置當前網路
-                        if (chainId === NETWORKS.MANTLE.chainId) {
-                            setCurrentNetwork('MANTLE');
-                        } else if (chainId === NETWORKS.BASE.chainId) {
-                            setCurrentNetwork('BASE');
-                        }
-                        
-                        fetchNFTs(accounts[0]);
+                        await getNetworkInfo();
+                        await fetchNFTs(accounts[0]);
                     } else {
-                        alert('請安裝 MetaMask!');
+                        setError('請安裝 MetaMask!');
                     }
                 } catch (error) {
                     console.error('連接錢包錯誤:', error);
-                    alert('連接錢包失敗: ' + error.message);
+                    setError('連接錢包失敗: ' + error.message);
+                } finally {
+                    setIsLoading(false);
                 }
             };
 
             const fetchNFTs = async (userAddress) => {
+                setError('');
+                setIsLoading(true);
                 try {
                     const provider = new ethers.providers.Web3Provider(window.ethereum);
+                    const signer = provider.getSigner();
                     const contract = new ethers.Contract(
-                        '0xc799d8f3ad911a03ac1e1f93baa2e961b4047803', // 替換為您的NFT合約地址
+                        '0xc799d8f3ad911a03ac1e1f93baa2e961b4047803', // NFT合約地址
                         ERC721_ABI,
-                        provider
+                        signer
                     );
 
-                    const balance = await contract.balanceOf(userAddress);
-                    const tokenIds = [];
+                    // 先嘗試獲取合約基本信息
+                    try {
+                        const name = await contract.name();
+                        const symbol = await contract.symbol();
+                        console.log('Contract Info:', { name, symbol });
+                    } catch (err) {
+                        console.log('獲取合約信息失敗:', err);
+                    }
 
-                    for (let i = 0; i < balance; i++) {
-                        const tokenId = await contract.tokenOfOwnerByIndex(userAddress, i);
-                        const tokenUri = await contract.tokenURI(tokenId);
-                        tokenIds.push({
-                            id: tokenId.toString(),
-                            uri: tokenUri
-                        });
+                    // 獲取餘額
+                    const balance = await contract.balanceOf(userAddress);
+                    console.log('NFT Balance:', balance.toString());
+                    
+                    const tokenIds = [];
+                    const balanceNum = balance.toNumber();
+
+                    for (let i = 0; i < balanceNum; i++) {
+                        try {
+                            const tokenId = await contract.tokenOfOwnerByIndex(userAddress, i);
+                            let tokenUri = '';
+                            try {
+                                tokenUri = await contract.tokenURI(tokenId);
+                            } catch (uriError) {
+                                console.log('獲取Token URI失敗:', uriError);
+                                tokenUri = 'Unable to fetch URI';
+                            }
+                            
+                            tokenIds.push({
+                                id: tokenId.toString(),
+                                uri: tokenUri
+                            });
+                        } catch (err) {
+                            console.error('獲取Token ID失敗:', err);
+                        }
                     }
 
                     setNfts(tokenIds);
+                    if (tokenIds.length === 0) {
+                        setError('沒有找到NFT');
+                    }
                 } catch (error) {
                     console.error('獲取NFT錯誤:', error);
-                    alert('獲取NFT失敗: ' + error.message);
+                    setError('獲取NFT失敗: ' + (error.message || '未知錯誤'));
+                } finally {
+                    setIsLoading(false);
                 }
             };
 
-            // 監聽網路變更
+            // 監聽網絡變更
             React.useEffect(() => {
                 if (window.ethereum) {
                     window.ethereum.on('chainChanged', (chainId) => {
-                        window.location.reload();
+                        getNetworkInfo();
+                        if (account) {
+                            fetchNFTs(account);
+                        }
                     });
                 }
-            }, []);
+            }, [account]);
 
             return (
                 <div className="container">
                     <h1>NFT 展示 Demo</h1>
                     
                     {!isConnected ? (
-                        <div>
-                            <button className="button" onClick={connectWallet}>
-                                連接錢包
-                            </button>
-                        </div>
+                        <button className="button" onClick={connectWallet} disabled={isLoading}>
+                            {isLoading ? '連接中...' : '連接錢包'}
+                        </button>
                     ) : (
                         <div>
-                            <p>已連接錢包: {account}</p>
-                            <p>當前網路: {currentNetwork || '未知'}</p>
-                            
-                            <div>
-                                <button className="button" onClick={() => switchNetwork('MANTLE')}>
-                                    切換到 Mantle
-                                </button>
-                                <button className="button" onClick={() => switchNetwork('BASE')}>
-                                    切換到 Base
-                                </button>
+                            <div className="network-info">
+                                <p>錢包地址: {account}</p>
+                                <p>網絡名稱: {networkInfo.name}</p>
+                                <p>Chain ID: {networkInfo.chainId}</p>
                             </div>
 
-                            <div className="nft-grid">
-                                {nfts.map((nft) => (
-                                    <div key={nft.id} className="nft-card">
-                                        <h3>Token ID: {nft.id}</h3>
-                                        <p>Token URI: {nft.uri}</p>
-                                    </div>
-                                ))}
-                            </div>
-                            {nfts.length === 0 && (
-                                <p>沒有找到NFT</p>
+                            {error && <div className="error">{error}</div>}
+                            
+                            {isLoading ? (
+                                <p>正在加載NFT數據...</p>
+                            ) : (
+                                <div className="nft-grid">
+                                    {nfts.map((nft) => (
+                                        <div key={nft.id} className="nft-card">
+                                            <h3>Token ID: {nft.id}</h3>
+                                            <p>Token URI: {nft.uri}</p>
+                                        </div>
+                                    ))}
+                                </div>
                             )}
                         </div>
                     )}
