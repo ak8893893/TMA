@@ -382,6 +382,123 @@
 }
 ];
 
+function NFTInfo({ contractAddress, account }) {
+    const [nftData, setNftData] = React.useState({
+        balance: 0,
+        tokens: []
+    });
+    const [isLoading, setIsLoading] = React.useState(false);
+
+    const getNFTInfo = async () => {
+        setIsLoading(true);
+        try {
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const contract = new ethers.Contract(contractAddress, contractABI, provider);
+            
+            // 獲取持有數量
+            const balance = await contract.balanceOf(account);
+            
+            // 獲取每個 NFT 的信息
+            const tokens = [];
+            const totalSupply = await contract.totalSupply();
+            
+            // 檢查每個 token 是否屬於當前用戶
+            for (let i = 1; i <= totalSupply; i++) {
+                try {
+                    const owner = await contract.ownerOf(i);
+                    if (owner.toLowerCase() === account.toLowerCase()) {
+                        let tokenURI = await contract.tokenURI(i);
+                        
+                        // 如果 URI 是 IPFS 鏈接，轉換為 HTTP 鏈接
+                        if (tokenURI.startsWith('ipfs://')) {
+                            tokenURI = tokenURI.replace('ipfs://', 'https://ipfs.io/ipfs/');
+                        }
+
+                        try {
+                            const response = await fetch(tokenURI);
+                            const metadata = await response.json();
+                            let imageUrl = metadata.image;
+                            
+                            // 如果圖片也是 IPFS 鏈接，轉換為 HTTP 鏈接
+                            if (imageUrl.startsWith('ipfs://')) {
+                                imageUrl = imageUrl.replace('ipfs://', 'https://ipfs.io/ipfs/');
+                            }
+
+                            tokens.push({
+                                id: i,
+                                uri: tokenURI,
+                                metadata: metadata,
+                                image: imageUrl
+                            });
+                        } catch (error) {
+                            console.error('獲取metadata錯誤:', error);
+                            tokens.push({
+                                id: i,
+                                uri: tokenURI,
+                                metadata: null,
+                                image: null
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.error('檢查token擁有者錯誤:', error);
+                }
+            }
+
+            setNftData({
+                balance: balance.toString(),
+                tokens: tokens
+            });
+        } catch (error) {
+            console.error('獲取NFT信息錯誤:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    React.useEffect(() => {
+        if (account) {
+            getNFTInfo();
+        }
+    }, [account]);
+
+    return (
+        <div className="nft-info">
+            <h3>NFT 持有信息</h3>
+            <p>持有數量: {nftData.balance}</p>
+            
+            {isLoading ? (
+                <p>加載中...</p>
+            ) : (
+                <div className="nft-grid">
+                    {nftData.tokens.map((token) => (
+                        <div key={token.id} className="nft-card">
+                            <h4>Token #{token.id}</h4>
+                            {token.image && (
+                                <img 
+                                    src={token.image} 
+                                    alt={`NFT #${token.id}`}
+                                    style={{
+                                        width: '100%',
+                                        maxWidth: '200px',
+                                        height: 'auto',
+                                        borderRadius: '8px'
+                                    }}
+                                />
+                            )}
+                            {token.metadata && (
+                                <div className="nft-metadata">
+                                    <p>{token.metadata.name}</p>
+                                    <p>{token.metadata.description}</p>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
 
 function NFTWalletDemo() {
             const [account, setAccount] = React.useState('');
