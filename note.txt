@@ -1,1 +1,11 @@
-test
+TMA使用方式
+
+用github action部屬上去後，取得網址
+
+把網址給bot father
+在 Telegram 中找到 @BotFather，然後：
+
+發送 /mybots 指令
+選擇您剛創建的機器人
+點擊 "Bot Settings"
+選擇 "Menu Button" 或 "Web App"
