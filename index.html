@@ -133,6 +133,37 @@
 </html>
 
 <script type="text/babel">
+            // 添加 Telegram WebApp 初始化
+            if (window.Telegram.WebApp) {
+            const webApp = window.Telegram.WebApp;
+            webApp.ready();
+            webApp.expand(); // 展開視圖
+
+            // 當 Mint 成功時顯示通知
+            const showSuccessAlert = () => {
+                webApp.showAlert("Mint 成功！");
+            };
+
+            // 當發生錯誤時顯示通知
+            const showErrorAlert = (error) => {
+                webApp.showAlert(`出錯了：${error}`);
+            };
+        }
+
+        // 修改 claim 函數
+        const claim = async () => {
+            // ... 原有的 claim 邏輯 ...
+            try {
+                // ... 原有的交易邏輯 ...
+                if (window.Telegram.WebApp) {
+                    window.Telegram.WebApp.showAlert('Mint 成功！');
+                }
+            } catch (error) {
+                if (window.Telegram.WebApp) {
+                    window.Telegram.WebApp.showAlert(`Mint 失敗：${error.message}`);
+                }
+            }
+        };
     // 定義網絡配置
     const NETWORKS = {
     MANTLE: {
@@ -2558,5 +2589,6 @@ function NFTWalletDemo() {
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<NFTWalletDemo />);
     </script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </body>
 </html>
