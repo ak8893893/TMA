@@ -95,6 +95,22 @@
             background: #fcf8e3;
             color: #8a6d3b;
         }
+        .nft-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .nft-metadata {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .nft-card img {
+            margin: 10px 0;
+        }
     </style>
 </head>
 <body>
@@ -389,13 +405,25 @@ function NFTWalletDemo() {
             const getNetworkInfo = async () => {
                 try {
                     const provider = new ethers.providers.Web3Provider(window.ethereum);
-                    const network = await provider.getNetwork();
                     const chainId = await window.ethereum.request({ 
                         method: 'eth_chainId' 
                     });
+                    
+                    // 根據 chainId 判斷網路名稱
+                    let networkName = 'Unknown';
+                    let displayChainId = chainId;
+                    
+                    if (chainId === '0x1388') {
+                        networkName = 'Mantle';
+                        displayChainId = '5000';
+                    } else if (chainId === '0x2105') {
+                        networkName = 'Base';
+                        displayChainId = '8453';
+                    }
+                    
                     setNetworkInfo({
-                        name: network.name,
-                        chainId: chainId
+                        name: networkName,
+                        chainId: displayChainId
                     });
                 } catch (err) {
                     console.error('獲取網絡信息錯誤:', err);
@@ -659,6 +687,13 @@ function NFTWalletDemo() {
                                 </div>
                             )}
                         </div>
+                    )}
+
+                    {isConnected && (
+                        <NFTInfo 
+                            contractAddress={contractAddress} 
+                            account={account} 
+                        />
                     )}
                 </div>
             );
