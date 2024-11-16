@@ -17,8 +17,15 @@
             border: none; 
             border-radius: 5px; 
             cursor: pointer; 
+            margin: 5px;
         }
         .button:hover { background: #2980b9; }
+        .network-select {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
         .nft-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -37,6 +44,32 @@
     <div id="root"></div>
 
     <script type="text/babel">
+        // 定義支持的網路
+        const NETWORKS = {
+            MANTLE: {
+                chainId: '0x1388', // 5000 in hex
+                chainName: 'Mantle',
+                nativeCurrency: {
+                    name: 'MNT',
+                    symbol: 'MNT',
+                    decimals: 18
+                },
+                rpcUrls: ['https://rpc.mantle.xyz'],
+                blockExplorerUrls: ['https://explorer.mantle.xyz']
+            },
+            BASE: {
+                chainId: '0x2105', // 8453 in hex
+                chainName: 'Base',
+                nativeCurrency: {
+                    name: 'ETH',
+                    symbol: 'ETH',
+                    decimals: 18
+                },
+                rpcUrls: ['https://mainnet.base.org'],
+                blockExplorerUrls: ['https://basescan.org']
+            }
+        };
+
         const ERC721_ABI = [
             "function balanceOf(address owner) view returns (uint256)",
             "function tokenOfOwnerByIndex(address owner, uint256 index) view returns (uint256)",
@@ -47,6 +80,33 @@
             const [account, setAccount] = React.useState('');
             const [nfts, setNfts] = React.useState([]);
             const [isConnected, setIsConnected] = React.useState(false);
+            const [currentNetwork, setCurrentNetwork] = React.useState('');
+
+            const switchNetwork = async (networkKey) => {
+                try {
+                    const network = NETWORKS[networkKey];
+                    await window.ethereum.request({
+                        method: 'wallet_addEthereumChain',
+                        params: [
+                            {
+                                chainId: network.chainId,
+                                chainName: network.chainName,
+                                nativeCurrency: network.nativeCurrency,
+                                rpcUrls: network.rpcUrls,
+                                blockExplorerUrls: network.blockExplorerUrls
+                            }
+                        ]
+                    });
+                    setCurrentNetwork(networkKey);
+                    // 如果已經連接錢包，重新獲取NFT
+                    if (account) {
+                        fetchNFTs(account);
+                    }
+                } catch (error) {
+                    console.error('切換網路錯誤:', error);
+                    alert('切換網路失敗: ' + error.message);
+                }
+            };
 
             const connectWallet = async () => {
                 try {
@@ -56,6 +116,19 @@
                         });
                         setAccount(accounts[0]);
                         setIsConnected(true);
+                        
+                        // 獲取當前網路ID
+                        const chainId = await window.ethereum.request({ 
+                            method: 'eth_chainId' 
+                        });
+                        
+                        // 設置當前網路
+                        if (chainId === NETWORKS.MANTLE.chainId) {
+                            setCurrentNetwork('MANTLE');
+                        } else if (chainId === NETWORKS.BASE.chainId) {
+                            setCurrentNetwork('BASE');
+                        }
+                        
                         fetchNFTs(accounts[0]);
                     } else {
                         alert('請安裝 MetaMask!');
@@ -94,17 +167,39 @@
                 }
             };
 
+            // 監聽網路變更
+            React.useEffect(() => {
+                if (window.ethereum) {
+                    window.ethereum.on('chainChanged', (chainId) => {
+                        window.location.reload();
+                    });
+                }
+            }, []);
+
             return (
                 <div className="container">
                     <h1>NFT 展示 Demo</h1>
                     
                     {!isConnected ? (
-                        <button className="button" onClick={connectWallet}>
-                            連接錢包
-                        </button>
+                        <div>
+                            <button className="button" onClick={connectWallet}>
+                                連接錢包
+                            </button>
+                        </div>
                     ) : (
                         <div>
                             <p>已連接錢包: {account}</p>
+                            <p>當前網路: {currentNetwork || '未知'}</p>
+                            
+                            <div>
+                                <button className="button" onClick={() => switchNetwork('MANTLE')}>
+                                    切換到 Mantle
+                                </button>
+                                <button className="button" onClick={() => switchNetwork('BASE')}>
+                                    切換到 Base
+                                </button>
+                            </div>
+
                             <div className="nft-grid">
                                 {nfts.map((nft) => (
                                     <div key={nft.id} className="nft-card">
