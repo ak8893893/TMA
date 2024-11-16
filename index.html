@@ -190,8 +190,6 @@
     }
 };
 
-const [showImage, setShowImage] = React.useState(false);
-
     // 完整的合約 ABI
     const contractABI = [
     {
@@ -2280,6 +2278,7 @@ function NFTWalletDemo() {
             const [success, setSuccess] = React.useState('');
             const [networkInfo, setNetworkInfo] = React.useState({});
             const [isLoading, setIsLoading] = React.useState(false);
+            const [showImage, setShowImage] = React.useState(false);  // 新增這行
             const [contractInfo, setContractInfo] = React.useState({
                 name: '',
                 symbol: '',
