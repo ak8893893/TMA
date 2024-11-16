@@ -190,6 +190,8 @@
     }
 };
 
+const [showImage, setShowImage] = React.useState(false);
+
     // 完整的合約 ABI
     const contractABI = [
     {
@@ -2359,6 +2361,7 @@ function NFTWalletDemo() {
             const connectWallet = async () => {
                 setError('');
                 setIsLoading(true);
+                setShowImage(true);
                 try {
                     if (window.ethereum) {
                         const accounts = await window.ethereum.request({
@@ -2499,6 +2502,7 @@ function NFTWalletDemo() {
                             {isLoading ? '連接中...' : '連接錢包'}
                         </button>
                     ) : (
+                        
                         <div>
                             <div className="network-info">
                                 <p>錢包地址: {account}</p>
@@ -2522,6 +2526,27 @@ function NFTWalletDemo() {
                                     </button>
                                 </div>
                             </div>
+
+                            {showImage && (
+                                <div style={{
+                                    margin: '20px 0',
+                                    borderRadius: '8px',
+                                    overflow: 'hidden',
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                }}>
+                                    <img 
+                                        src="https://i.imgur.com/Qc0xTTe.jpg"
+                                        alt="8557"
+                                        style={{
+                                            width: '100%',
+                                            maxWidth: '400px',
+                                            height: 'auto',
+                                            display: 'block',
+                                            margin: '0 auto'
+                                        }}
+                                    />
+                                </div>
+                            )}
 
                             {contractInfo.name && (
                                 <div className="contract-info">
