@@ -105,29 +105,29 @@
 <script type="text/babel">
     // 定義網絡配置
     const NETWORKS = {
-        MANTLE: {
-            chainId: '0x1388',
-            chainName: 'Mantle',
-            nativeCurrency: {
-                name: 'MNT',
-                symbol: 'MNT',
-                decimals: 18
-            },
-            rpcUrls: ['https://rpc.mantle.xyz'],
-            blockExplorerUrls: ['https://explorer.mantle.xyz']
+    MANTLE: {
+        chainId: '0x1388', // 要修改這裡，從 '5000' 改為 '0x1388'
+        chainName: 'Mantle',
+        nativeCurrency: {
+            name: 'MNT',
+            symbol: 'MNT',
+            decimals: 18
         },
-        BASE: {
-            chainId: '0x2105',
-            chainName: 'Base Mainnet',
-            nativeCurrency: {
-                name: 'ETH',
-                symbol: 'ETH',
-                decimals: 18
-            },
-            rpcUrls: ['https://mainnet.base.org'],
-            blockExplorerUrls: ['https://basescan.org']
-        }
-    };
+        rpcUrls: ['https://rpc.mantle.xyz'],
+        blockExplorerUrls: ['https://explorer.mantle.xyz']
+    },
+    BASE: {
+        chainId: '0x2105', // 要修改這裡，從 '8453' 改為 '0x2105'
+        chainName: 'Base Mainnet',
+        nativeCurrency: {
+            name: 'ETH',
+            symbol: 'ETH',
+            decimals: 18
+        },
+        rpcUrls: ['https://mainnet.base.org'],
+        blockExplorerUrls: ['https://basescan.org']
+    }
+};
 
     // 完整的合約 ABI
     const contractABI = [
@@ -405,18 +405,32 @@ function NFTWalletDemo() {
             const switchNetwork = async (networkKey) => {
                 try {
                     const network = NETWORKS[networkKey];
-                    await window.ethereum.request({
-                        method: 'wallet_addEthereumChain',
-                        params: [
-                            {
-                                chainId: network.chainId,
-                                chainName: network.chainName,
-                                nativeCurrency: network.nativeCurrency,
-                                rpcUrls: network.rpcUrls,
-                                blockExplorerUrls: network.blockExplorerUrls
-                            }
-                        ]
-                    });
+                    // 先嘗試切換網絡
+                    try {
+                        await window.ethereum.request({
+                            method: 'wallet_switchEthereumChain',
+                            params: [{ chainId: network.chainId }],
+                        });
+                    } catch (switchError) {
+                        // 如果網絡不存在，則添加網絡
+                        if (switchError.code === 4902) {
+                            await window.ethereum.request({
+                                method: 'wallet_addEthereumChain',
+                                params: [
+                                    {
+                                        chainId: network.chainId,
+                                        chainName: network.chainName,
+                                        nativeCurrency: network.nativeCurrency,
+                                        rpcUrls: network.rpcUrls,
+                                        blockExplorerUrls: network.blockExplorerUrls
+                                    }
+                                ]
+                            });
+                        } else {
+                            throw switchError;
+                        }
+                    }
+                    
                     await getNetworkInfo();
                     if (isConnected) {
                         await getContractInfo();
