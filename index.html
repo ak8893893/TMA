@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+<!-- head 部分和之前相同 -->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,6 +10,7 @@
     <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
     <style>
+        /* 原有的樣式保持不變 */
         .container { padding: 20px; max-width: 1200px; margin: 0 auto; }
         .button { 
             background: #3498db; 
@@ -45,7 +47,32 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        // 更新的 ERC721 ABI，包含更多方法用於調試
+        // 定義網絡配置
+        const NETWORKS = {
+            MANTLE: {
+                chainId: '0x1388', // 5000
+                chainName: 'Mantle',
+                nativeCurrency: {
+                    name: 'MNT',
+                    symbol: 'MNT',
+                    decimals: 18
+                },
+                rpcUrls: ['https://rpc.mantle.xyz'],
+                blockExplorerUrls: ['https://explorer.mantle.xyz']
+            },
+            BASE: {
+                chainId: '0x2105', // 8453
+                chainName: 'Base Mainnet',
+                nativeCurrency: {
+                    name: 'ETH',
+                    symbol: 'ETH',
+                    decimals: 18
+                },
+                rpcUrls: ['https://mainnet.base.org'],
+                blockExplorerUrls: ['https://basescan.org']
+            }
+        };
+
         const ERC721_ABI = [
             "function balanceOf(address owner) view returns (uint256)",
             "function tokenOfOwnerByIndex(address owner, uint256 index) view returns (uint256)",
@@ -62,6 +89,39 @@
             const [error, setError] = React.useState('');
             const [networkInfo, setNetworkInfo] = React.useState({});
             const [isLoading, setIsLoading] = React.useState(false);
+
+            // 切換網絡
+            const switchNetwork = async (networkKey) => {
+                try {
+                    const network = NETWORKS[networkKey];
+                    await window.ethereum.request({
+                        method: 'wallet_addEthereumChain',
+                        params: [
+                            {
+                                chainId: network.chainId,
+                                chainName: network.chainName,
+                                nativeCurrency: network.nativeCurrency,
+                                rpcUrls: network.rpcUrls,
+                                blockExplorerUrls: network.blockExplorerUrls
+                            }
+                        ]
+                    });
+                    
+                    // 等待網絡切換完成
+                    await window.ethereum.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: network.chainId }],
+                    });
+                    
+                    await getNetworkInfo();
+                    if (account) {
+                        await fetchNFTs(account);
+                    }
+                } catch (error) {
+                    console.error('切換網絡錯誤:', error);
+                    setError('切換網絡失敗: ' + error.message);
+                }
+            };
 
             const getNetworkInfo = async () => {
                 try {
@@ -109,12 +169,11 @@
                     const provider = new ethers.providers.Web3Provider(window.ethereum);
                     const signer = provider.getSigner();
                     const contract = new ethers.Contract(
-                        '0xc799d8f3ad911a03ac1e1f93baa2e961b4047803', // NFT合約地址
+                        '0xc799d8f3ad911a03ac1e1f93baa2e961b4047803',
                         ERC721_ABI,
                         signer
                     );
 
-                    // 先嘗試獲取合約基本信息
                     try {
                         const name = await contract.name();
                         const symbol = await contract.symbol();
@@ -123,7 +182,6 @@
                         console.log('獲取合約信息失敗:', err);
                     }
 
-                    // 獲取餘額
                     const balance = await contract.balanceOf(userAddress);
                     console.log('NFT Balance:', balance.toString());
                     
@@ -162,7 +220,6 @@
                 }
             };
 
-            // 監聽網絡變更
             React.useEffect(() => {
                 if (window.ethereum) {
                     window.ethereum.on('chainChanged', (chainId) => {
@@ -188,6 +245,15 @@
                                 <p>錢包地址: {account}</p>
                                 <p>網絡名稱: {networkInfo.name}</p>
                                 <p>Chain ID: {networkInfo.chainId}</p>
+                            </div>
+
+                            <div>
+                                <button className="button" onClick={() => switchNetwork('MANTLE')}>
+                                    切換到 Mantle
+                                </button>
+                                <button className="button" onClick={() => switchNetwork('BASE')}>
+                                    切換到 Base
+                                </button>
                             </div>
 
                             {error && <div className="error">{error}</div>}
